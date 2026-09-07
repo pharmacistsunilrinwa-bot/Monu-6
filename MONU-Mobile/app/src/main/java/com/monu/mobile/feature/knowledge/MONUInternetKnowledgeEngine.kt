@@ -15,6 +15,28 @@ class MONUInternetKnowledgeEngine {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    fun masterCapabilities(): List<String> = listOf(
+        "Internet knowledge retrieval",
+        "Empty query validation",
+        "UTF-8 query URL encoding",
+        "Wikipedia REST API requests",
+        "HTTP network execution",
+        "Connection timeout handling",
+        "Read timeout handling",
+        "HTTP error detection",
+        "JSON response parsing",
+        "Knowledge title extraction",
+        "Knowledge summary extraction",
+        "Not-found state reporting",
+        "Network error reporting",
+        "Invalid query reporting"
+    )
+
+    fun masterPurpose(): String =
+        "Retrieves factual internet knowledge summaries when local or cloud intelligence requires an external knowledge source."
+
+    fun isAvailable(): Boolean = true
+
     fun search(query: String): InternetKnowledgeResult {
 
         val cleanedQuery = query.trim()
@@ -39,10 +61,7 @@ class MONUInternetKnowledgeEngine {
 
             val request = Request.Builder()
                 .url(url)
-                .header(
-                    "User-Agent",
-                    "MONU-Mobile/1.0"
-                )
+                .header("User-Agent", "MONU-Mobile/1.0")
                 .build()
 
             client.newCall(request).execute().use { response ->
@@ -92,7 +111,6 @@ class MONUInternetKnowledgeEngine {
             }
 
         } catch (error: Exception) {
-
             InternetKnowledgeResult(
                 query = cleanedQuery,
                 title = "",

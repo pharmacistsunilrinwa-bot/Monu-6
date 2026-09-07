@@ -43,6 +43,7 @@ import com.monu.mobile.domain.model.InternetKnowledgeResult
 import com.monu.mobile.domain.model.InternetKnowledgeState
 import com.monu.mobile.domain.model.MessageRole
 import com.monu.mobile.feature.intelligence.MONUMasterBrain
+import com.monu.mobile.feature.offline.MONUOfflineCommandRouter
 import com.monu.mobile.feature.voice.MONUVoiceEngine
 import com.monu.mobile.feature.voice.MONUVoiceInputEngine
 import com.monu.mobile.ui.components.CommandInput
@@ -56,13 +57,16 @@ fun ChatScreen() {
 val context = LocalContext.current
 val scope = rememberCoroutineScope()
 
+val networkMonitor = remember {
+    MONUNetworkMonitor(context.applicationContext)
+}
 
 val masterBrain = remember {
-    MONUMasterBrain(
-        networkMonitor = MONUNetworkMonitor(
-            context.applicationContext
-        )
-    )
+    MONUMasterBrain()
+}
+
+val offlineCommandRouter = remember {
+    MONUOfflineCommandRouter()
 }
 
 var voiceReady by remember {
@@ -174,21 +178,13 @@ fun handleOfflineCommand(
         return
     }
 
-    scope.launch {
-        try {
-            val response = masterBrain.answer(cleanCommand)
+    val response =
+        offlineCommandRouter.handle(cleanCommand)
 
-            addMessage(
-                content = response.text,
-                role = MessageRole.MONU
-            )
-        } catch (_: Exception) {
-            addMessage(
-                content = "MONU could not process this request.",
-                role = MessageRole.SYSTEM
-            )
-        }
-    }
+    addMessage(
+        content = response,
+        role = MessageRole.MONU
+    )
 }
 
 val voiceEngine = remember {
@@ -475,8 +471,9 @@ Column(
 
             try {
                 val response =
-                    masterBrain.answer(
-                        cleanCommand
+                    queryRouter.route(
+                        query = cleanCommand,
+                        isOnline = networkMonitor.isOnline()
                     )
 
                 addMessage(

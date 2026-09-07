@@ -1,0 +1,171 @@
+package com.monu.mobile.feature.intelligence
+
+import com.monu.mobile.core.network.MONUNetworkMonitor
+import com.monu.mobile.domain.model.InternetKnowledgeState
+import com.monu.mobile.feature.gemini.MONUGeminiIntelligenceEngine
+import com.monu.mobile.feature.knowledge.MONUInternetKnowledgeEngine
+import com.monu.mobile.feature.offline.MONUOfflineCommandRequest
+import com.monu.mobile.feature.offline.MONUOfflineCommandRouter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+enum class MONUMasterBrainId {
+    OFFLINE_COMMAND,
+    GEMINI_INTELLIGENCE,
+    INTERNET_KNOWLEDGE
+}
+
+data class MONUMasterBrainCapability(
+    val id: MONUMasterBrainId,
+    val name: String,
+    val purpose: String,
+    val capabilities: List<String>,
+    val priority: Int
+)
+
+data class MONUMasterBrainResult(
+    val brain: MONUMasterBrainId?,
+    val text: String,
+    val success: Boolean
+)
+
+class MONUMasterBrain(
+    private val networkMonitor: MONUNetworkMonitor,
+    private val intelligenceHub: MONUIntelligenceHub =
+        MONUIntelligenceHub(),
+    private val offlineBrain: MONUOfflineCommandRouter =
+        MONUOfflineCommandRouter(),
+    private val geminiBrain: MONUGeminiIntelligenceEngine =
+        MONUGeminiIntelligenceEngine(),
+    private val internetBrain: MONUInternetKnowledgeEngine =
+        MONUInternetKnowledgeEngine()
+) {
+
+    fun capabilities(): List<MONUMasterBrainCapability> {
+        return listOf(
+            MONUMasterBrainCapability(
+                id = MONUMasterBrainId.OFFLINE_COMMAND,
+                name = "Offline Command Intelligence",
+                purpose = "Understands and executes supported local commands.",
+                capabilities = offlineBrain.masterCapabilities(),
+                priority = 1
+            ),
+            MONUMasterBrainCapability(
+                id = MONUMasterBrainId.GEMINI_INTELLIGENCE,
+                name = "Gemini Intelligence",
+                purpose =
+                    "Performs cloud AI reasoning with multi-model fallback.",
+                capabilities = geminiBrain.masterCapabilities(),
+                priority = 2
+            ),
+            MONUMasterBrainCapability(
+                id = MONUMasterBrainId.INTERNET_KNOWLEDGE,
+                name = "Internet Knowledge Intelligence",
+                purpose = internetBrain.masterPurpose(),
+                capabilities = internetBrain.masterCapabilities(),
+                priority = 3
+            )
+        )
+    }
+
+    fun intelligenceHealth(): String {
+        return intelligenceHub.healthReport()
+    }
+
+    suspend fun answer(query: String): MONUMasterBrainResult =
+        withContext(Dispatchers.IO) {
+
+            val cleanQuery = query.trim()
+            val isOnline = networkMonitor.isOnline()
+
+            if (cleanQuery.isBlank()) {
+                return@withContext MONUMasterBrainResult(
+                    brain = null,
+                    text = "Please enter a valid request.",
+                    success = false
+                )
+            }
+
+            val lower = cleanQuery.lowercase()
+
+            if (
+                lower == "monu health" ||
+                lower == "monu intelligence health" ||
+                lower == "intelligence status" ||
+                lower == "capabilities"
+            ) {
+                return@withContext MONUMasterBrainResult(
+                    brain = null,
+                    text = intelligenceHealth(),
+                    success = true
+                )
+            }
+
+            if (offlineBrain.canHandle(cleanQuery)) {
+                val response = offlineBrain.execute(
+                    MONUOfflineCommandRequest(cleanQuery)
+                )
+
+                return@withContext MONUMasterBrainResult(
+                    brain = MONUMasterBrainId.OFFLINE_COMMAND,
+                    text = response.response,
+                    success = response.handled
+                )
+            }
+
+            if (isOnline && geminiBrain.isConfigured()) {
+                val result = geminiBrain.ask(cleanQuery)
+
+                if (result.success && result.text.isNotBlank()) {
+                    return@withContext MONUMasterBrainResult(
+                        brain = MONUMasterBrainId.GEMINI_INTELLIGENCE,
+                        text = result.text,
+                        success = true
+                    )
+                }
+            }
+
+            if (!isOnline) {
+                return@withContext MONUMasterBrainResult(
+                    brain = null,
+                    text = "Internet is unavailable. I can still handle supported offline commands.",
+                    success = false
+                )
+            }
+
+            val internetResult =
+                internetBrain.search(cleanQuery)
+
+            if (
+                internetResult.state == InternetKnowledgeState.SUCCESS &&
+                internetResult.summary.isNotBlank()
+            ) {
+                val text = buildString {
+                    if (internetResult.title.isNotBlank()) {
+                        append(internetResult.title)
+                        append("\n\n")
+                    }
+
+                    append(internetResult.summary)
+
+                    if (internetResult.source.isNotBlank()) {
+                        append("\n\nSource: ")
+                        append(internetResult.source)
+                    }
+                }
+
+                return@withContext MONUMasterBrainResult(
+                    brain = MONUMasterBrainId.INTERNET_KNOWLEDGE,
+                    text = text,
+                    success = true
+                )
+            }
+
+            MONUMasterBrainResult(
+                brain = null,
+                text =
+                    "No available intelligence capability could complete this request.",
+                success = false
+            )
+        }
+}

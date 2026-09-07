@@ -1,11 +1,8 @@
 package com.monu.mobile.feature.conversation
 
-import com.monu.mobile.feature.intelligence.MONUMasterBrain
-
 class MONUChatScreenIntegration(
-    private val masterBrain: MONUMasterBrain,
     private val coordinator: MONUChatCoordinator =
-        MONUChatCoordinator(masterBrain)
+        MONUChatCoordinator()
 ) {
 
     fun messages(): List<MONUConversationMessage> {
@@ -16,7 +13,7 @@ class MONUChatScreenIntegration(
         return coordinator.state().isProcessing
     }
 
-    suspend fun submit(
+    fun submit(
         command: String
     ): MONUChatSubmission {
         return coordinator.submit(command)

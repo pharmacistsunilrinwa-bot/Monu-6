@@ -1,18 +1,15 @@
 package com.monu.mobile.feature.conversation
 
-import com.monu.mobile.feature.intelligence.MONUMasterBrain
-
 class MONUConversationPipeline(
-    private val masterBrain: MONUMasterBrain,
     private val bridge: MONUOfflineConversationBridge =
-        MONUOfflineConversationBridge(masterBrain)
+        MONUOfflineConversationBridge()
 ) {
 
     fun state(): MONUConversationState {
         return bridge.conversationState()
     }
 
-    suspend fun submit(
+    fun submit(
         input: String
     ): MONUConversationExecutionResult {
 

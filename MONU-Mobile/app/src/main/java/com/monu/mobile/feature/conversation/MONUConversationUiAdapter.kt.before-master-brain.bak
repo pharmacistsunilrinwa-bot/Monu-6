@@ -1,7 +1,5 @@
 package com.monu.mobile.feature.conversation
 
-import com.monu.mobile.feature.intelligence.MONUMasterBrain
-
 data class MONUConversationUiState(
     val messages: List<MONUConversationMessage> = emptyList(),
     val isProcessing: Boolean = false,
@@ -9,9 +7,8 @@ data class MONUConversationUiState(
 )
 
 class MONUConversationUiAdapter(
-    private val masterBrain: MONUMasterBrain,
     private val pipeline: MONUConversationPipeline =
-        MONUConversationPipeline(masterBrain)
+        MONUConversationPipeline()
 ) {
 
     fun currentState(): MONUConversationUiState {
@@ -24,7 +21,7 @@ class MONUConversationUiAdapter(
         )
     }
 
-    suspend fun submit(
+    fun submit(
         input: String
     ): MONUConversationExecutionResult {
         return pipeline.submit(input)

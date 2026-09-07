@@ -1,18 +1,19 @@
 package com.monu.mobile.feature.conversation
 
-import com.monu.mobile.feature.intelligence.MONUMasterBrain
-import com.monu.mobile.feature.intelligence.MONUMasterBrainResult
+import com.monu.mobile.feature.offline.MONUOfflineCommandContract
+import com.monu.mobile.feature.offline.MONUOfflineCommandRequest
 import com.monu.mobile.feature.offline.MONUOfflineCommandResponse
+import com.monu.mobile.feature.offline.MONUOfflineCommandRouter
 
 data class MONUConversationExecutionResult(
     val userMessage: MONUConversationMessage,
     val assistantMessage: MONUConversationMessage,
-    val masterBrainResult: MONUMasterBrainResult,
-    val commandResponse: MONUOfflineCommandResponse? = null
+    val commandResponse: MONUOfflineCommandResponse
 )
 
 class MONUOfflineConversationBridge(
-    private val masterBrain: MONUMasterBrain,
+    private val commandContract: MONUOfflineCommandContract =
+        MONUOfflineCommandRouter(),
     private val stateController: MONUConversationStateController =
         MONUConversationStateController()
 ) {
@@ -21,24 +22,29 @@ class MONUOfflineConversationBridge(
         return stateController.state()
     }
 
-    suspend fun execute(
+    fun execute(
         command: String
     ): MONUConversationExecutionResult {
 
         stateController.beginProcessing()
 
         return try {
+
             val userMessage =
                 stateController.addUserMessage(
                     content = command
                 )
 
-            val brainResult =
-                masterBrain.answer(command)
+            val response =
+                commandContract.execute(
+                    MONUOfflineCommandRequest(
+                        command = command
+                    )
+                )
 
             val assistantMessage =
                 stateController.addAssistantMessage(
-                    content = brainResult.text
+                    content = response.response
                 )
 
             stateController.finishProcessing()
@@ -46,13 +52,14 @@ class MONUOfflineConversationBridge(
             MONUConversationExecutionResult(
                 userMessage = userMessage,
                 assistantMessage = assistantMessage,
-                masterBrainResult = brainResult
+                commandResponse = response
             )
+
         } catch (error: Exception) {
 
             val safeMessage =
                 error.message
-                    ?: "MONU could not process this request."
+                    ?: "MONU could not process the command locally."
 
             stateController.setError(safeMessage)
 
@@ -69,11 +76,13 @@ class MONUOfflineConversationBridge(
             MONUConversationExecutionResult(
                 userMessage = userMessage,
                 assistantMessage = assistantMessage,
-                masterBrainResult =
-                    MONUMasterBrainResult(
-                        brain = null,
-                        text = safeMessage,
-                        success = false
+                commandResponse =
+                    MONUOfflineCommandResponse(
+                        handled = false,
+                        intent =
+                            com.monu.mobile.feature.offline
+                                .MONUOfflineCommandIntent.UNKNOWN,
+                        response = safeMessage
                     )
             )
         }

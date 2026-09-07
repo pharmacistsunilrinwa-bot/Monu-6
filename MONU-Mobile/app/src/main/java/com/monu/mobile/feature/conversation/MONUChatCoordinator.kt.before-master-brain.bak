@@ -1,7 +1,5 @@
 package com.monu.mobile.feature.conversation
 
-import com.monu.mobile.feature.intelligence.MONUMasterBrain
-
 data class MONUChatSubmission(
     val accepted: Boolean,
     val result: MONUConversationExecutionResult?,
@@ -9,16 +7,15 @@ data class MONUChatSubmission(
 )
 
 class MONUChatCoordinator(
-    private val masterBrain: MONUMasterBrain,
     private val adapter: MONUConversationUiAdapter =
-        MONUConversationUiAdapter(masterBrain)
+        MONUConversationUiAdapter()
 ) {
 
     fun state(): MONUConversationUiState {
         return adapter.currentState()
     }
 
-    suspend fun submit(
+    fun submit(
         input: String
     ): MONUChatSubmission {
 
