@@ -22,7 +22,6 @@ data class MONUQueryResponse(
     val success: Boolean
 )
 
-@Deprecated("Legacy router. Use MONUMasterBrain as the single authoritative intelligence core.")
 class MONUQueryRouter {
 
     private val offlineRouter =

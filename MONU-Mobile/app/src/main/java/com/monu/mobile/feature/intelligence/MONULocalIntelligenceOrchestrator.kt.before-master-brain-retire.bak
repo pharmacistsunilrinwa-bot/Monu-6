@@ -14,7 +14,6 @@ import com.monu.mobile.feature.offline.MONUOfflineCommandRouter
  *
  * This class intentionally keeps all fallback decisions inside the APK.
  */
-@Deprecated("Legacy router. Use MONUMasterBrain as the single authoritative intelligence core.")
 class MONULocalIntelligenceOrchestrator {
 
     private val gemini = MONUGeminiIntelligenceEngine()
