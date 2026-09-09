@@ -1,6 +1,7 @@
 package com.monu.mobile.feature.intelligence
 
 import com.monu.mobile.core.network.MONUNetworkMonitor
+import com.monu.mobile.feature.context.MONUContextIntelligence
 import com.monu.mobile.domain.model.InternetKnowledgeState
 import com.monu.mobile.feature.gemini.MONUGeminiIntelligenceEngine
 import com.monu.mobile.feature.knowledge.MONUInternetKnowledgeEngine
@@ -10,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 enum class MONUMasterBrainId {
+    CONTEXT_INTELLIGENCE,
     OFFLINE_COMMAND,
     GEMINI_INTELLIGENCE,
     INTERNET_KNOWLEDGE
@@ -23,26 +25,42 @@ data class MONUMasterBrainCapability(
     val priority: Int
 )
 
+data class MONUMasterBrainDecision(
+    val selectedBrain: MONUMasterBrainId?,
+    val reason: String,
+    val online: Boolean
+)
+
 data class MONUMasterBrainResult(
     val brain: MONUMasterBrainId?,
     val text: String,
-    val success: Boolean
+    val success: Boolean,
+    val decision: MONUMasterBrainDecision
 )
 
 class MONUMasterBrain(
     private val networkMonitor: MONUNetworkMonitor,
-    private val intelligenceHub: MONUIntelligenceHub =
-        MONUIntelligenceHub(),
-    private val offlineBrain: MONUOfflineCommandRouter =
-        MONUOfflineCommandRouter(),
+    private val contextBrain: MONUContextIntelligence =
+        MONUContextIntelligence(),
     private val geminiBrain: MONUGeminiIntelligenceEngine =
         MONUGeminiIntelligenceEngine(),
+    private val intelligenceHub: MONUIntelligenceHub =
+        MONUIntelligenceHub(geminiBrain),
+    private val offlineBrain: MONUOfflineCommandRouter =
+        MONUOfflineCommandRouter(),
     private val internetBrain: MONUInternetKnowledgeEngine =
         MONUInternetKnowledgeEngine()
 ) {
 
     fun capabilities(): List<MONUMasterBrainCapability> {
         return listOf(
+            MONUMasterBrainCapability(
+                id = MONUMasterBrainId.CONTEXT_INTELLIGENCE,
+                name = contextBrain.masterName(),
+                purpose = contextBrain.masterPurpose(),
+                capabilities = contextBrain.masterCapabilities(),
+                priority = 0
+            ),
             MONUMasterBrainCapability(
                 id = MONUMasterBrainId.OFFLINE_COMMAND,
                 name = "Offline Command Intelligence",
@@ -82,7 +100,12 @@ class MONUMasterBrain(
                 return@withContext MONUMasterBrainResult(
                     brain = null,
                     text = "Please enter a valid request.",
-                    success = false
+                    success = false,
+                    decision = MONUMasterBrainDecision(
+                        selectedBrain = null,
+                        reason = "Blank query",
+                        online = isOnline
+                    )
                 )
             }
 
@@ -97,7 +120,25 @@ class MONUMasterBrain(
                 return@withContext MONUMasterBrainResult(
                     brain = null,
                     text = intelligenceHealth(),
-                    success = true
+                    success = true,
+                    decision = MONUMasterBrainDecision(
+                        selectedBrain = null,
+                        reason = "Master Brain health request",
+                        online = isOnline
+                    )
+                )
+            }
+
+            if (contextBrain.canHandle(cleanQuery)) {
+                return@withContext MONUMasterBrainResult(
+                    brain = MONUMasterBrainId.CONTEXT_INTELLIGENCE,
+                    text = contextBrain.answer(cleanQuery),
+                    success = true,
+                    decision = MONUMasterBrainDecision(
+                        selectedBrain = MONUMasterBrainId.CONTEXT_INTELLIGENCE,
+                        reason = "Context Intelligence can handle this request",
+                        online = isOnline
+                    )
                 )
             }
 
@@ -109,7 +150,12 @@ class MONUMasterBrain(
                 return@withContext MONUMasterBrainResult(
                     brain = MONUMasterBrainId.OFFLINE_COMMAND,
                     text = response.response,
-                    success = response.handled
+                    success = response.handled,
+                    decision = MONUMasterBrainDecision(
+                        selectedBrain = MONUMasterBrainId.OFFLINE_COMMAND,
+                        reason = "Offline Command Intelligence can handle this request",
+                        online = isOnline
+                    )
                 )
             }
 
@@ -120,7 +166,12 @@ class MONUMasterBrain(
                     return@withContext MONUMasterBrainResult(
                         brain = MONUMasterBrainId.GEMINI_INTELLIGENCE,
                         text = result.text,
-                        success = true
+                        success = true,
+                        decision = MONUMasterBrainDecision(
+                            selectedBrain = MONUMasterBrainId.GEMINI_INTELLIGENCE,
+                            reason = "Gemini is configured and returned a successful answer",
+                            online = isOnline
+                        )
                     )
                 }
             }
@@ -129,7 +180,12 @@ class MONUMasterBrain(
                 return@withContext MONUMasterBrainResult(
                     brain = null,
                     text = "Internet is unavailable. I can still handle supported offline commands.",
-                    success = false
+                    success = false,
+                    decision = MONUMasterBrainDecision(
+                        selectedBrain = null,
+                        reason = "No online intelligence available and no offline capability matched",
+                        online = false
+                    )
                 )
             }
 
@@ -157,7 +213,12 @@ class MONUMasterBrain(
                 return@withContext MONUMasterBrainResult(
                     brain = MONUMasterBrainId.INTERNET_KNOWLEDGE,
                     text = text,
-                    success = true
+                    success = true,
+                    decision = MONUMasterBrainDecision(
+                        selectedBrain = MONUMasterBrainId.INTERNET_KNOWLEDGE,
+                        reason = "Higher-priority intelligence did not return an answer; internet knowledge succeeded",
+                        online = isOnline
+                    )
                 )
             }
 
@@ -165,7 +226,12 @@ class MONUMasterBrain(
                 brain = null,
                 text =
                     "No available intelligence capability could complete this request.",
-                success = false
+                success = false,
+                decision = MONUMasterBrainDecision(
+                    selectedBrain = null,
+                    reason = "All eligible intelligence capabilities were exhausted",
+                    online = isOnline
+                )
             )
         }
 }

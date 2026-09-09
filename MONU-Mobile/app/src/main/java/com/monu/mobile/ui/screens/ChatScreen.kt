@@ -43,6 +43,8 @@ import com.monu.mobile.domain.model.InternetKnowledgeResult
 import com.monu.mobile.domain.model.InternetKnowledgeState
 import com.monu.mobile.domain.model.MessageRole
 import com.monu.mobile.feature.intelligence.MONUMasterBrain
+import com.monu.mobile.feature.conversation.MONUChatScreenIntegration
+import com.monu.mobile.feature.conversation.MONUConversationChatMapper
 import com.monu.mobile.feature.voice.MONUVoiceEngine
 import com.monu.mobile.feature.voice.MONUVoiceInputEngine
 import com.monu.mobile.ui.components.CommandInput
@@ -62,6 +64,26 @@ val masterBrain = remember {
         networkMonitor = MONUNetworkMonitor(
             context.applicationContext
         )
+    )
+}
+
+val conversationIntegration = remember(masterBrain) {
+    MONUChatScreenIntegration(masterBrain)
+}
+
+var conversationVersion by remember {
+    mutableStateOf(0)
+}
+
+fun refreshConversation() {
+    conversationVersion++
+}
+
+fun conversationMessages(): List<ChatMessage> {
+    conversationVersion
+
+    return MONUConversationChatMapper.toChatMessages(
+        conversationIntegration.messages()
     )
 }
 
@@ -85,108 +107,28 @@ var voiceRuntimeHealth by remember {
     mutableStateOf("Initializing")
 }
 
-var messages by remember {
-    mutableStateOf(
-        listOf(
-            ChatMessage(
-                id = UUID.randomUUID().toString(),
-                conversationId = "default",
-                content =
-                    "MONU Command Center ready. Internet knowledge is available.",
-                role = MessageRole.SYSTEM
-            )
-        )
-    )
-}
+val messages = conversationMessages()
 
-fun addMessage(
-    content: String,
-    role: MessageRole
-) {
-    messages = messages + ChatMessage(
-        id = UUID.randomUUID().toString(),
-        conversationId = "default",
-        content = content,
-        role = role
-    )
-}
 
-fun buildResponse(
-    result: InternetKnowledgeResult
-): String {
-    return when (result.state) {
-        InternetKnowledgeState.SUCCESS -> {
-            buildString {
-                append(result.title)
-
-                if (result.summary.isNotBlank()) {
-                    append("\n\n")
-                    append(result.summary)
-                }
-
-                if (result.source.isNotBlank()) {
-                    append("\n\nSource: ")
-                    append(result.source)
-                }
-            }
-        }
-
-        InternetKnowledgeState.NOT_FOUND -> {
-            buildString {
-                append(
-                    "I could not find a useful internet summary for this query."
-                )
-
-                if (!result.errorMessage.isNullOrBlank()) {
-                    append("\n")
-                    append(result.errorMessage)
-                }
-            }
-        }
-
-        InternetKnowledgeState.NETWORK_ERROR -> {
-            buildString {
-                append("Internet request failed.")
-
-                if (!result.errorMessage.isNullOrBlank()) {
-                    append("\n")
-                    append(result.errorMessage)
-                }
-            }
-        }
-
-        InternetKnowledgeState.INVALID_QUERY -> {
-            "Please enter a valid query."
-        }
-    }
-}
-
-fun handleOfflineCommand(
+fun submitToMasterBrain(
     command: String
 ) {
     val cleanCommand = command.trim()
 
     if (cleanCommand.isBlank()) {
-        addMessage(
-            content = "Please say or type a command.",
-            role = MessageRole.SYSTEM
-        )
         return
     }
 
     scope.launch {
-        try {
-            val response = masterBrain.answer(cleanCommand)
+        searching = true
 
-            addMessage(
-                content = response.text,
-                role = MessageRole.MONU
-            )
+        try {
+            conversationIntegration.submit(cleanCommand)
+            refreshConversation()
         } catch (_: Exception) {
-            addMessage(
-                content = "MONU could not process this request.",
-                role = MessageRole.SYSTEM
-            )
+            refreshConversation()
+        } finally {
+            searching = false
         }
     }
 }
@@ -207,30 +149,7 @@ val voiceInputEngine = remember {
                 return@MONUVoiceInputEngine
             }
 
-            addMessage(
-                content = cleanCommand,
-                role = MessageRole.OWNER
-            )
-
-            scope.launch {
-
-
-                searching = true
-
-                try {
-                    val response =
-                        masterBrain.answer(cleanCommand)
-
-                    addMessage(
-                        content = response.text,
-                        role = MessageRole.MONU
-                    )
-                } catch (_: Exception) {
-                    handleOfflineCommand(cleanCommand)
-                } finally {
-                    searching = false
-                }
-            }
+            submitToMasterBrain(cleanCommand)
         },
         onError = { error ->
             voiceInputStatus = error
@@ -445,50 +364,20 @@ Column(
 
         if (cleanCommand.isBlank()) {
             if (attachments.isNotEmpty()) {
-                addMessage(
-                    content =
-                        "Attachments selected but attachment analysis is not available yet." +
-                            attachmentText,
-                    role = MessageRole.SYSTEM
+                submitToMasterBrain(
+                    "Attachments selected but attachment analysis is not available yet." +
+                        attachmentText
                 )
             } else {
-                addMessage(
-                    content =
-                        "Please enter a text query.",
-                    role = MessageRole.SYSTEM
-                )
+                return@CommandInput
             }
 
             return@CommandInput
         }
 
-        addMessage(
-            content =
-                cleanCommand + attachmentText,
-            role = MessageRole.OWNER
+        submitToMasterBrain(
+            cleanCommand + attachmentText
         )
-
-        scope.launch {
-
-
-            searching = true
-
-            try {
-                val response =
-                    masterBrain.answer(
-                        cleanCommand
-                    )
-
-                addMessage(
-                    content = response.text,
-                    role = MessageRole.MONU
-                )
-            } catch (_: Exception) {
-                handleOfflineCommand(cleanCommand)
-            } finally {
-                searching = false
-            }
-        }
     }
 }
 

@@ -2,6 +2,7 @@ package com.monu.mobile.feature.conversation
 
 import com.monu.mobile.feature.intelligence.MONUMasterBrain
 import com.monu.mobile.feature.intelligence.MONUMasterBrainResult
+import com.monu.mobile.feature.intelligence.MONUMasterBrainDecision
 import com.monu.mobile.feature.offline.MONUOfflineCommandResponse
 
 data class MONUConversationExecutionResult(
@@ -73,7 +74,12 @@ class MONUOfflineConversationBridge(
                     MONUMasterBrainResult(
                         brain = null,
                         text = safeMessage,
-                        success = false
+                        success = false,
+                        decision = MONUMasterBrainDecision(
+                            selectedBrain = null,
+                            reason = "Conversation execution failed before a Master Brain result could be completed",
+                            online = false
+                        )
                     )
             )
         }

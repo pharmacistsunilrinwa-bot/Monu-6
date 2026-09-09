@@ -14,7 +14,10 @@ data class MONUIntelligenceCapability(
     val description: String
 )
 
-class MONUIntelligenceHub {
+class MONUIntelligenceHub(
+    private val gemini: MONUGeminiIntelligenceEngine =
+        MONUGeminiIntelligenceEngine()
+) {
 
     private val unifiedIntelligence =
         MONUUnifiedIntelligence()
@@ -37,8 +40,7 @@ class MONUIntelligenceHub {
     private val rulesEngine =
         MONURulesEngine()
 
-    val gemini =
-        MONUGeminiIntelligenceEngine()
+    // Shared Gemini provider supplied by MONUMasterBrain.
 
     fun capabilities(): List<MONUIntelligenceCapability> {
 
